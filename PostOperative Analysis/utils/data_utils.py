@@ -41,7 +41,15 @@ def extract_points(df):
     Extracts the (X, Y, Z) coordinates from the DataFrame.
     Returns a numpy array of shape (n_points, 3).
     """
-    return df[["Name", "Position X", "Position Y", "Position Z"]]
+    return {row['Name']: (row['Position X'], row['Position Y'], row['Position Z']) for _, row in df.iterrows()}
+
+def extract_planes(df):
+    """
+    Extract the (X, Y, Z) coordinates for center of the plane along with the normal ector (n_x, n_y, n_z) from the DataFrame.
+    Returns a numpy array of shape (n_planes, 6).
+    """
+
+    return {row['Name']: (row['Position X'], row['Position Y'], row['Position Z'], row['Normal X'], row['Normal Y'], row['Normal Z']) for _, row in df.iterrows()}
 
 # Compute pairwise distances
 def point_distance(df, pairs=None):
@@ -55,7 +63,7 @@ def point_distance(df, pairs=None):
     if pairs is None:
         pairs = [(f"{i}", f"{i}P") for i in range(1, df.shape[0]//2 + 1)]
 
-    point_map = {row["Name"]: (row["Position X"], row["Position Y"], row["Position Z"]) for _, row in df.iterrows()}
+    point_map = extract_points(df)
     distances = {}
     
     for pair in pairs:
@@ -64,6 +72,74 @@ def point_distance(df, pairs=None):
             point2 = point_map[pair[1]]
             distances[pair] = euclidean(point1, point2)
     return distances
+
+def transformation_matrix(plane):
+    """
+    Constructs a 4x4 transformation matrix representing the local coordinate system.
+    
+    Parameters:
+        plane (dict): A dictionary containing:
+            - "Position X", "Position Y", "Position Z": Center of the plane.
+            - "Normal X", "Normal Y", "Normal Z": Normal vector of the plane.
+    
+    Returns:
+        np.ndarray: A 4x4 transformation matrix.
+    """
+    # Extract centroid and normal
+    centroid = np.array([plane["Position X"].values, plane["Position Y"].values, plane["Position Z"].values])
+    z_axis = np.array([plane["Normal X"].values, plane["Normal Y"].values, plane["Normal Z"].values])
+    z_axis /= np.linalg.norm(z_axis)  # Normalize the Z-axis
+
+    # Choose a reference vector for X-axis calculation
+    ref_vector = np.array([0, 1, 0])
+    if np.allclose(np.cross(ref_vector, z_axis), 0):
+        ref_vector = np.array([1, 0, 0])
+
+    # Compute X and Y axes
+    x_axis = np.cross(ref_vector, z_axis)
+    x_axis /= np.linalg.norm(x_axis)  # Normalize the X-axis
+    y_axis = np.cross(z_axis, x_axis)  # Compute Y-axis
+
+    # Construct the 4x4 transformation matrix
+    T = np.eye(4)
+    T[:3, 0] = x_axis  # First column: X-axis
+    T[:3, 1] = y_axis  # Second column: Y-axis
+    T[:3, 2] = z_axis  # Third column: Z-axis
+    T[:3, 3] = centroid  # Translation (position of the coordinate system)
+
+    return T
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Plot the distance matrix
 def plot_distances_bar(distances, title="Distances Between Point Pairs"):
