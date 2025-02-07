@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import seaborn as sns
+import os
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from scipy.spatial.distance import euclidean
@@ -16,6 +17,14 @@ def set_plot_theme():
         "font.family": "serif",
         "font.serif": ["Computer Modern Roman"],
         "text.latex.preamble": r"\usepackage{amsmath}"
+    })
+def set_plot_default():
+    mpl.rcdefaults()
+    sns.set_style("whitegrid")
+    sns.set_context("paper")
+    plt.rcParams['axes.grid'] = False
+    mpl.rcParams.update({
+        "text.usetex": False,
     })
 
 # Read CSV data
@@ -42,39 +51,72 @@ def point_distance(df, pairs=None):
     If `pairs` is provided, it should be a list of tuples, e.g., [(1, 1P), (2, 2P)].
     Returns a dictionary with pairs as keys and distances as values.
     """
+    
     if pairs is None:
         pairs = [(f"{i}", f"{i}P") for i in range(1, df.shape[0]//2 + 1)]
+
+    point_map = {row["Name"]: (row["Position X"], row["Position Y"], row["Position Z"]) for _, row in df.iterrows()}
     distances = {}
     
     for pair in pairs:
-        
-        if pair[0] in df.Name.values and pair[1] in df.Name.values:
-            p1 = df[df.Name == pair[0]].iloc[:, 1:].values
-            p2 = df[df.Name == pair[1]].iloc[:, 1:].values
-            distances[pair] = euclidean(p1, p2)
+        if pair[0] in point_map and pair[1] in point_map:
+            point1 = point_map[pair[0]]
+            point2 = point_map[pair[1]]
+            distances[pair] = euclidean(point1, point2)
     return distances
 
 # Plot the distance matrix
-def plot_distance_matrix(distances, title="Pairwise Distances Between Points"):
+def plot_distances_bar(distances, title="Distances Between Point Pairs"):
     """
-    Plots the pairwise distance matrix as a heatmap.
+    Plots the distances between point pairs as a bar plot.
     """
-    fig, ax = plt.subplots()
-    sns.heatmap(
-        distances,
-        cmap="viridis",
-        annot=True,
-        fmt=".2f",
-        linewidths=0.5,
-        cbar_kws={"label": "Distance"}
-    )
+    if not distances:
+        print("No distances to plot.")
+        return
+
+    # Prepare data for plotting
+    pairs = [f"{pair[0]}-{pair[1]}" for pair in distances.keys()]
+    values = list(distances.values())
+
+    # Create the plot
+    fig, ax = plt.subplot()
+    sns.barplot(x=pairs, y=values, palette="viridis")
     plt.title(title, fontsize=14)
-    plt.xlabel("Point Index", fontsize=12)
-    plt.ylabel("Point Index", fontsize=12)
+    plt.xlabel("Point Pairs", fontsize=12)
+    plt.ylabel("Distance", fontsize=12)
+    plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
     plt.show()
     return fig
 
+def plot_distances(distances, title="Distances Between Point Pairs"):
+    """
+    Plots the distances between point pairs as a scatter and box plot.
+    """
+    if not distances:
+        print("No distances to plot.")
+        return
+
+    # Prepare data for plotting
+    pairs = [f"{pair[0]}-{pair[1]}" for pair in distances.keys()]
+    values = list(distances.values())
+
+    # Create the plot
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    sns.scatterplot(x=pairs, y=values, ax=ax[0], size=values, sizes=(40, 100))
+    sns.boxplot(y=values, ax=ax[1])
+    plt.suptitle(title, fontsize=14)
+    ax[0].set_xlabel("Point Pairs", fontsize=12)
+    ax[0].set_ylabel("Distance", fontsize=12)
+    ax[0].legend(loc="upper left")
+    ax[0].grid(True)
+    ax[1].set_xlabel("Point Pairs", fontsize=12)
+    ax[1].set_ylabel("Distance", fontsize=12)
+    #show average distance
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+    plt.show()
+    return fig
 
 # https://zhauniarovich.com/post/2022/2022-09-matplotlib-graphs-in-research-papers/
 def save_fig(
